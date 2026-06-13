@@ -14,7 +14,13 @@ Pas 4 - Oprire sistem - `docker compose down -v`
 
 ## Generare date pentru sistem IDS
 
-Notă - script-ul de simulat atacuri nu a fost publicat pe Git, deoarece folosește nmap și alte tool-uri ce trebuie utilizate doar în medii izolate și strict controlate. Pentru testarea clasificării, se utilizează un container linux ce face port-scan pe container-ul server.
+### Disclaimer privind mediul de testare
+
+Toate operațiunile de captură, analiză și simulare de trafic prezentate în acest proiect sunt efectuate exclusiv într-un mediu izolat și strict controlat, folosind o rețea virtuală Docker dedicată. Script-ul care utilizează `tcpdump` rulează doar în această rețea izolată, având scopul de a captura traficul generat între containerele proiectului, fără a interacționa cu rețele externe sau sisteme reale.
+
+Pentru testarea clasificării traficului, sunt generate scenarii controlate, precum port-scan asupra unui container server aflat în aceeași rețea Docker. Script-urile folosite pentru simularea atacurilor nu sunt publicate în repository, deoarece pot utiliza instrumente precum `nmap` sau alte utilitare care trebuie folosite doar în medii izolate și controlate.
+
+Acest proiect are scop strict educațional și experimental. Orice tehnică prezentată trebuie utilizată doar pe sisteme proprii sau pe infrastructuri pentru care există permisiune explicită.
 
 Pas 1 - deschidere terminal nou, `cd docker-network/`
 
