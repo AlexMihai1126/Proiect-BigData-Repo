@@ -1,0 +1,6 @@
+.DS_Store
+/processed_data
+/data
+/models
+/spark_output
+/raw_dataset
