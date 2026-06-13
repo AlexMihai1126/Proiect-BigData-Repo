@@ -1,0 +1,99 @@
+services:
+  pcap-processor:
+    build:
+      context: ./pcap-processor
+    platform: linux/amd64
+    container_name: ids-pcap-processor
+    environment:
+      WATCH_DIR: /tmp/pcap/input_pcap
+      PCAP_INPUT_TEMPLATE: /tmp/pcap/tmp/input_{}
+      PCAP_OUTPUT_TEMPLATE: /tmp/pcap/tmp/output_{}
+      CSV_READY_DIR: /tmp/pcap/input_csv
+      FAILED_DIR: /tmp/pcap/failed_pcap
+      PROCESSED_DIR: /tmp/pcap/processed_pcap
+      CICFLOWMETER_CWD: /CICFlowMeter/bin
+      CICFLOWMETER_COMMAND: ./cfm
+    volumes:
+      - ../data/captures:/tmp/pcap
+  kafka:
+    image: apache/kafka:latest
+    hostname: kafka
+    container_name: ids-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+  kafka-init:
+    image: apache/kafka:latest
+    container_name: ids-kafka-init
+    depends_on:
+      - kafka
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+      sleep 10 &&
+      /opt/kafka/bin/kafka-topics.sh
+      --bootstrap-server kafka:29092
+      --create
+      --if-not-exists
+      --topic network-flows
+      --partitions 1
+      --replication-factor 1
+      "
+
+  kafka-producer:
+    build:
+      context: ./kafka-producer
+    container_name: ids-kafka-producer
+    depends_on:
+      - kafka-init
+    environment:
+      PYTHONUNBUFFERED: "1"
+      WATCH_DIR: /data/captures/input_csv
+      PROCESSED_DIR: /data/processed_csv
+      KAFKA_BOOTSTRAP: kafka:29092
+      KAFKA_TOPIC: network-flows
+      PRODUCER_BATCH_SIZE: 1000
+      PRODUCER_BATCH_SLEEP: 0.5
+    volumes:
+      - ../data/captures/input_csv:/data/captures/input_csv
+      - ../data/processed_csv:/data/processed_csv
+
+  spark-ml:
+    build:
+      context: ./spark-ml
+    container_name: ids-spark-ml
+    depends_on:
+      - kafka-init
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      KAFKA_TOPIC: network-flows
+      MODEL_LOAD_PATH: /app/model
+      FEATURE_COLUMNS_PATH: /app/shared/feature_columns.json
+      LABEL_NAMES_PATH: /app/shared/label_names.json
+      OUTPUT_PATH: /app/output/predictions
+      CHECKPOINT_PATH: /app/output/checkpoints/live_ids
+    volumes:
+      - ../models/rf_pipeline_model:/app/model
+      - ../processed_data/json:/app/shared
+      - ../spark_output:/app/output
